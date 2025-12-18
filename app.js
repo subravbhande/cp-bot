@@ -32,7 +32,7 @@ async function connectionLogic(functionToExecute) {
             version: version,
             auth: {
                 creds: state.creds,
-                keys: makeCacheableSignalKeyStore(state.keys, logger)
+                keys: makeCacheableSignalKeyStore(state.keys, logger),
             },
             logger,
             markOnlineOnConnect: true,
@@ -130,6 +130,10 @@ async function connectionLogic(functionToExecute) {
         });
 
         sock.ev.on('creds.update', saveCreds);
+        
+        sock.ev.on('lid-mapping.update', (update) => {
+            console.log('LID mapping updated:', update);
+        });
     } catch (error) {
         console.error("Error in connection logic:", error);
          
