@@ -5,3 +5,6 @@ auth_info_baileys
 *.png
 *.bat
 *.json
+.venv
+site
+!requirements.txt

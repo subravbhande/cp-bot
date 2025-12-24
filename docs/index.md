@@ -57,43 +57,42 @@ Can be easily extended to include more platforms.
 
 ### Prerequisites
 
-```bash
-Node.js v14 or newer
-npm v6 or newer
-WhatsApp account
-```
+- Node.js v14 or newer
+- npm v6 or newer
+- WhatsApp account
 
 ### Installation
 
 1. Clone the repository:
 
-```bash
-git clone https://github.com/Vishal490404/Contest-Reminder-WhatsApp-Bot.git
-cd Contest-Reminder-WhatsApp-Bot
-```
+    ```bash
+    git clone https://github.com/Vishal490404/Contest-Reminder-WhatsApp-Bot.git
+    cd Contest-Reminder-WhatsApp-Bot
+    ```
 
 2. Install dependencies:
 
-```bash
-npm install
-```
+    ```bash
+    npm install
+    ```
 
 3. Create `.env` file:
-```env
-CLIST_USERNAME=your_username
-CLIST_API_KEY=your_api_key
-CLIST_API_URL=https://clist.by
-HELP_NUMBER=919876543210@s.whatsapp.net 
-# HELP_NUMBER is for sending error logs 
-```
+
+    ```env
+    CLIST_USERNAME=your_username
+    CLIST_API_KEY=your_api_key
+    CLIST_API_URL=https://clist.by
+    HELP_NUMBER=919876543210@s.whatsapp.net 
+    # HELP_NUMBER is for sending error logs 
+    ```
 
 4. Start the service:
-```bash
-npm start
-```
+
+    ```bash
+    npm start
+    ```
 
 5. Scan the QR code with WhatsApp to authenticate
-
 
 ## How It Works
 
@@ -105,7 +104,7 @@ npm start
 
 ### Daily Notification Format
 
-```
+```text
 ✨ Hello Chefs! 👨‍🍳 ✨
 
 Today (Monday, 15/01/2024):
@@ -130,7 +129,7 @@ Happy Coding and may your submissions be Accepted!😉
 
 ### Reminder Format
 
-```
+```text
 🏆 Codeforces Round #800
 ⏰ Time: 20:05
 ⏳ Duration: 2h
