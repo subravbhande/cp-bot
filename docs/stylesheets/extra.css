@@ -1,0 +1,28 @@
+.mermaid {
+    white-space: pre;
+}
+
+.copy-code-button {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background-color: #fcfcfc;
+    border: 1px solid #e1e4e5;
+    border-radius: 3px;
+    padding: 3px 6px;
+    font-size: 11px;
+    color: #404040;
+    cursor: pointer;
+    z-index: 10;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+pre:hover .copy-code-button {
+    opacity: 1;
+}
+
+.copy-code-button:hover {
+    background-color: #f0f0f0;
+    color: #2980b9;
+}

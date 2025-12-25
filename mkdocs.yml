@@ -3,38 +3,15 @@ site_description: Automated WhatsApp bot for coding contest notifications
 site_author: Vishal Desai
 
 theme:
-  name: material
-  palette:
-    - scheme: slate
-      primary: teal
-      accent: cyan
-      toggle:
-        icon: material/brightness-4
-        name: Switch to light mode
-    - scheme: default
-      primary: teal
-      accent: cyan
-      toggle:
-        icon: material/brightness-7
-        name: Switch to dark mode
-  features:
-    - navigation.tabs
-    - navigation.sections
-    - toc.integrate
-    - navigation.top
-    - navigation.expand
-    - search.highlight
-    - search.suggest
-    - search.share
-    - content.code.copy
-    - content.code.annotate
-  font:
-    text: Roboto
-    code: Roboto Mono
+  name: readthedocs
+
+extra_css:
+  - stylesheets/extra.css
 
 extra_javascript:
   - https://unpkg.com/mermaid@10.6.1/dist/mermaid.min.js
   - javascripts/mermaid-init.js
+  - javascripts/copy-code.js
 
 markdown_extensions:
   - pymdownx.highlight:
@@ -45,7 +22,7 @@ markdown_extensions:
       custom_fences:
         - name: mermaid
           class: mermaid
-          format: !!python/name:pymdownx.superfences.fence_code_format
+          format: !!python/name:pymdownx.superfences.fence_div_format
   - admonition
   - pymdownx.details
   - pymdownx.tabbed:
