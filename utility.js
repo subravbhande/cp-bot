@@ -3,7 +3,7 @@ import config from "./config.js";
 
 async function messageAdmin(sock, errString) {
   try {
-    // CLI / test mode safety
+    // IMPORTANT: CLI / test mode safe
     if (!sock) {
       console.error("ADMIN MESSAGE:", errString);
       return errString;
@@ -24,9 +24,7 @@ async function checkFileAndDelete() {
     await fs.unlink(config.paths.reminderFile);
     return true;
   } catch (err) {
-    if (err.code === "ENOENT") {
-      return true;
-    }
+    if (err.code === "ENOENT") return true;
     console.error("Reminder file error:", err);
     return false;
   }
