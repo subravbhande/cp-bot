@@ -1,18 +1,14 @@
 import fs from "fs/promises";
 import config from "./config.js";
 
-/**
- * Send error/info message to admin.
- * Works both in WhatsApp runtime and CLI test mode.
- */
 async function messageAdmin(sock, errString) {
-  // ✅ CLI / test mode (no WhatsApp socket)
-  if (!sock) {
-    console.error("ADMIN MESSAGE:", errString);
-    return errString;
-  }
-
   try {
+    // CLI / test mode safety
+    if (!sock) {
+      console.error("ADMIN MESSAGE:", errString);
+      return errString;
+    }
+
     return await sock.sendMessage(
       config.notification.helpNumber,
       { text: errString }
@@ -22,9 +18,6 @@ async function messageAdmin(sock, errString) {
   }
 }
 
-/**
- * Clears reminder file if exists
- */
 async function checkFileAndDelete() {
   try {
     await fs.stat(config.paths.reminderFile);
@@ -32,17 +25,13 @@ async function checkFileAndDelete() {
     return true;
   } catch (err) {
     if (err.code === "ENOENT") {
-      // file doesn't exist → not an error
       return true;
     }
-    console.error("Something went wrong:", err);
+    console.error("Reminder file error:", err);
     return false;
   }
 }
 
-/**
- * Sleep helper
- */
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
