@@ -30,7 +30,10 @@ function formatContest(c) {
 /* ---------- FETCHERS ---------- */
 
 async function fetchCodeforces() {
-  const { data } = await axios.get("https://codeforces.com/api/contest.list");
+  const { data } = await axios.get(
+    "https://codeforces.com/api/contest.list"
+  );
+
   return data.result
     .filter(c => c.phase === "BEFORE")
     .map(c => ({
@@ -85,10 +88,18 @@ async function fetchAtCoder() {
   $("#contest-table-upcoming tbody tr").each((_, el) => {
     const name = $(el).find("td").eq(1).text().trim();
     const url = "https://atcoder.jp" + $(el).find("a").attr("href");
-    const start =
-      new Date($(el).find("time").attr("datetime")).getTime() + IST_OFFSET;
 
-    const [h, m] = $(el).find("td").eq(2).text().trim().split(":").map(Number);
+    const start =
+      new Date($(el).find("time").attr("datetime")).getTime() +
+      IST_OFFSET;
+
+    const [h, m] = $(el)
+      .find("td")
+      .eq(2)
+      .text()
+      .trim()
+      .split(":")
+      .map(Number);
 
     contests.push({
       name,
@@ -112,9 +123,16 @@ async function fetchCodeChef() {
 
   $("#future-contests-data tbody tr").each((_, el) => {
     const tds = $(el).find("td");
+
     const name = tds.eq(1).text().trim();
-    const url = "https://www.codechef.com" + tds.eq(1).find("a").attr("href");
-    const start = new Date(tds.eq(2).text().trim()).getTime() + IST_OFFSET;
+    const url =
+      "https://www.codechef.com" +
+      tds.eq(1).find("a").attr("href");
+
+    const start =
+      new Date(tds.eq(2).text().trim()).getTime() +
+      IST_OFFSET;
+
     const [h, m] = tds.eq(3).text().trim().split(":").map(Number);
 
     contests.push({
@@ -141,10 +159,10 @@ export async function fetchData(sock) {
     ]);
 
     const now = Date.now();
-    const twoDays = now + 2 * 24 * 60 * 60 * 1000;
+    const twoDaysLater = now + 2 * 24 * 60 * 60 * 1000;
 
     const contests = [...cf, ...lc, ...ac, ...cc]
-      .filter(c => c.start >= now && c.start <= twoDays)
+      .filter(c => c.start >= now && c.start <= twoDaysLater)
       .sort((a, b) => a.start - b.start);
 
     let message = "*✨ Upcoming Contests ✨*\n\n";
@@ -155,6 +173,7 @@ export async function fetchData(sock) {
       setReminder(m, c.start).catch(() => {});
     }
 
+    // WhatsApp mode
     if (sock) {
       if (await checkFileAndDelete()) {
         return sock.sendMessage(
@@ -162,6 +181,7 @@ export async function fetchData(sock) {
           { text: message }
         );
       }
+      return;
     }
 
     // CLI / test mode
@@ -169,8 +189,9 @@ export async function fetchData(sock) {
 
   } catch (err) {
     if (sock) {
-      return messageAdmin(sock, err.message);
+      return messageAdmin(sock, `Contest fetch failed: ${err.message}`);
     }
-    throw err;
+    console.error("Contest fetch failed:", err.message);
+    return null;
   }
 }
