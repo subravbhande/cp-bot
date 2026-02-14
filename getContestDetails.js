@@ -187,11 +187,15 @@ export async function fetchData(sock) {
     // CLI / test mode
     return message;
 
-  } catch (err) {
-    if (sock) {
-      return messageAdmin(sock, `Contest fetch failed: ${err.message}`);
-    }
-    console.error("Contest fetch failed:", err.message);
-    return null;
+  }catch (err) {
+  if (sock) {
+    await messageAdmin(sock, `Contest fetch failed: ${err.message}`);
+    return;
   }
+
+  // CLI / test mode
+  console.error("Contest fetch failed:", err.message);
+  return null;
+}
+
 }
