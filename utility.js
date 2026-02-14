@@ -2,19 +2,19 @@ import fs from "fs/promises";
 import config from "./config.js";
 
 async function messageAdmin(sock, errString) {
-  // 🚨 HARD GUARD
-  if (!sock || typeof sock.sendMessage !== "function") {
+  if (!sock) {
+    // CLI / test mode
     console.error("ADMIN ERROR:", errString);
     return;
   }
 
   try {
-    await sock.sendMessage(
+    return await sock.sendMessage(
       config.notification.helpNumber,
       { text: errString }
     );
   } catch (err) {
-    console.error("Failed to send error message:", err.message);
+    console.error("Failed to send error message:", err);
   }
 }
 
@@ -24,15 +24,12 @@ async function checkFileAndDelete() {
     await fs.unlink(config.paths.reminderFile);
     return true;
   } catch (err) {
-    if (err.code === "ENOENT") return true;
-    console.error("Reminder file error:", err.message);
+    if (err.code === "ENOENT") {
+      return true;
+    }
+    console.error("Reminder file error:", err);
     return false;
   }
 }
 
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-export { messageAdmin, checkFileAndDelete, sleep };
-
+export { messageAdmin, checkFileAndDelete };
