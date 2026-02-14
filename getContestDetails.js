@@ -7,11 +7,10 @@ import config from "./config.js";
 const IST_OFFSET = 5.5 * 60 * 60 * 1000;
 
 /* ---------- FORMAT ---------- */
-
 function formatContest(c) {
   const time = new Date(c.start).toLocaleTimeString("en-IN", {
     hour: "2-digit",
-    minute: "2-digit"
+    minute: "2-digit",
   });
 
   const h = Math.floor(c.duration / 3600);
@@ -31,6 +30,7 @@ function formatContest(c) {
 
 async function fetchCodeforces() {
   const { data } = await axios.get("https://codeforces.com/api/contest.list");
+
   return data.result
     .filter(c => c.phase === "BEFORE")
     .map(c => ({
@@ -84,9 +84,11 @@ async function fetchAtCoder() {
 
   $("#contest-table-upcoming tbody tr").each((_, el) => {
     const name = $(el).find("td").eq(1).text().trim();
-    const url = "https://atcoder.jp" + $(el).find("a").attr("href");
-    const start =
-      new Date($(el).find("time").attr("datetime")).getTime() + IST_OFFSET;
+    const href = $(el).find("a").attr("href");
+    if (!href) return;
+
+    const startRaw = $(el).find("time").attr("datetime");
+    if (!startRaw) return;
 
     const [h, m] = $(el)
       .find("td")
@@ -98,9 +100,9 @@ async function fetchAtCoder() {
 
     contests.push({
       name,
-      start,
+      start: new Date(startRaw).getTime() + IST_OFFSET,
       duration: h * 3600 + m * 60,
-      url,
+      url: "https://atcoder.jp" + href,
       host: "atcoder.jp"
     });
   });
@@ -119,17 +121,19 @@ async function fetchCodeChef() {
   $("#future-contests-data tbody tr").each((_, el) => {
     const tds = $(el).find("td");
     const name = tds.eq(1).text().trim();
-    const url = "https://www.codechef.com" + tds.eq(1).find("a").attr("href");
-    const start =
-      new Date(tds.eq(2).text().trim()).getTime() + IST_OFFSET;
+    const href = tds.eq(1).find("a").attr("href");
+    if (!href) return;
+
+    const startText = tds.eq(2).text().trim();
+    if (!startText) return;
 
     const [h, m] = tds.eq(3).text().trim().split(":").map(Number);
 
     contests.push({
       name,
-      start,
+      start: new Date(startText).getTime() + IST_OFFSET,
       duration: h * 3600 + m * 60,
-      url,
+      url: "https://www.codechef.com" + href,
       host: "codechef.com"
     });
   });
@@ -149,10 +153,10 @@ export async function fetchData(sock) {
     ]);
 
     const now = Date.now();
-    const twoDaysLater = now + 2 * 24 * 60 * 60 * 1000;
+    const twoDays = now + 2 * 24 * 60 * 60 * 1000;
 
     const contests = [...cf, ...lc, ...ac, ...cc]
-      .filter(c => c.start >= now && c.start <= twoDaysLater)
+      .filter(c => c.start >= now && c.start <= twoDays)
       .sort((a, b) => a.start - b.start);
 
     let message = "*✨ Upcoming Contests ✨*\n\n";
@@ -173,15 +177,13 @@ export async function fetchData(sock) {
       return;
     }
 
-    // CLI / test mode
     return message;
 
   } catch (err) {
     if (sock) {
-      await messageAdmin(sock, `Contest fetch failed: ${err.message}`);
+      await messageAdmin(sock, err.message);
       return;
     }
-
     console.error("Contest fetch failed:", err.message);
     return null;
   }
