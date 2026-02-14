@@ -1,137 +1,167 @@
-import Parser from "rss-parser";
+import axios from "axios";
 import cheerio from "cheerio";
 import { setReminder } from "./reminderService.js";
 import { checkFileAndDelete, messageAdmin } from "./utility.js";
 import config from "./config.js";
 
-const rssParser = new Parser();
+/* ---------------- HELPERS ---------------- */
 
-function normalizeContest({ name, start, duration, url, host }) {
-    return {
-        event: name,
-        start,
-        duration,
-        href: url,
-        host
-    };
+function formatContest(contest) {
+  const startTime = new Date(contest.start).toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  const durationHours = Math.floor(contest.duration / 3600);
+  const durationMinutes = Math.floor((contest.duration % 3600) / 60);
+  const duration =
+    durationHours > 0
+      ? `${durationHours}h ${durationMinutes}m`
+      : `${durationMinutes}m`;
+
+  const icon =
+    config.platforms.icons[contest.host] || config.platforms.icons.default;
+
+  return `${icon} *${contest.name}*
+⏰ *Time:* ${startTime}
+⏳ *Duration:* ${duration}
+🔗 ${contest.url}\n\n`;
 }
 
-/* ---------------- CODEFORCES ---------------- */
+/* ---------------- FETCHERS ---------------- */
+
 async function fetchCodeforces() {
-    const res = await fetch("https://codeforces.com/api/contest.list");
-    const data = await res.json();
-
-    return data.result
-        .filter(c => c.phase === "BEFORE")
-        .map(c =>
-            normalizeContest({
-                name: c.name,
-                start: new Date(c.startTimeSeconds * 1000).toISOString(),
-                duration: c.durationSeconds,
-                url: `https://codeforces.com/contests/${c.id}`,
-                host: "codeforces.com"
-            })
-        );
+  const res = await axios.get("https://codeforces.com/api/contest.list");
+  return res.data.result
+    .filter(c => c.phase === "BEFORE")
+    .map(c => ({
+      name: c.name,
+      start: c.startTimeSeconds * 1000,
+      duration: c.durationSeconds,
+      url: `https://codeforces.com/contest/${c.id}`,
+      host: "codeforces.com"
+    }));
 }
 
-/* ---------------- CODECHEF ---------------- */
-async function fetchCodeChef() {
-    const feed = await rssParser.parseURL("https://www.codechef.com/events/feed");
-    return feed.items.map(item =>
-        normalizeContest({
-            name: item.title,
-            start: new Date(item.isoDate).toISOString(),
-            duration: 3 * 60 * 60,
-            url: item.link,
-            host: "codechef.com"
-        })
-    );
-}
-
-/* ---------------- LEETCODE ---------------- */
 async function fetchLeetCode() {
-    const res = await fetch("https://leetcode.com/graphql", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            query: `
-            query {
-              contestUpcomingContests {
-                title
-                startTime
-                duration
-                titleSlug
-              }
-            }`
-        })
-    });
-
-    const json = await res.json();
-    return json.data.contestUpcomingContests.map(c =>
-        normalizeContest({
-            name: c.title,
-            start: new Date(c.startTime * 1000).toISOString(),
-            duration: c.duration,
-            url: `https://leetcode.com/contest/${c.titleSlug}`,
-            host: "leetcode.com"
-        })
-    );
-}
-
-/* ---------------- ATCODER ---------------- */
-async function fetchAtCoder() {
-    const res = await fetch("https://atcoder.jp/contests/");
-    const html = await res.text();
-    const $ = cheerio.load(html);
-
-    const contests = [];
-    $("#contest-table-upcoming tbody tr").each((_, el) => {
-        const cols = $(el).find("td");
-        const name = $(cols[1]).text().trim();
-        const url = "https://atcoder.jp" + $(cols[1]).find("a").attr("href");
-        const start = new Date($(cols[0]).text().trim()).toISOString();
-        const durationText = $(cols[2]).text().trim();
-        const [h, m] = durationText.split(":").map(Number);
-
-        contests.push(
-            normalizeContest({
-                name,
-                start,
-                duration: h * 3600 + m * 60,
-                url,
-                host: "atcoder.jp"
-            })
-        );
-    });
-
-    return contests;
-}
-
-/* ---------------- MAIN FUNCTION ---------------- */
-export async function fetchData(sock) {
-    try {
-        const contests = [
-            ...(await fetchCodeforces()),
-            ...(await fetchCodeChef()),
-            ...(await fetchLeetCode()),
-            ...(await fetchAtCoder())
-        ];
-
-        const now = new Date();
-        const twoDaysLater = new Date();
-        twoDaysLater.setDate(now.getDate() + 2);
-
-        const filtered = contests.filter(c => {
-            const start = new Date(c.start);
-            return start >= now && start <= twoDaysLater;
-        });
-
-        if (await checkFileAndDelete()) {
-            return filtered.length ? createMessage(filtered) : createMessage([]);
+  const res = await axios.post(
+    "https://leetcode.com/graphql",
+    {
+      query: `
+        query {
+          contestV2UpcomingContests {
+            title
+            startTime
+            duration
+          }
         }
-
-        return messageAdmin(sock, "Failed to clear reminder file");
-    } catch (err) {
-        return messageAdmin(sock, `Contest fetch error: ${err.message}`);
+      `
+    },
+    {
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0",
+        "Referer": "https://leetcode.com"
+      }
     }
+  );
+
+  return res.data.data.contestV2UpcomingContests.map(c => ({
+    name: c.title,
+    start: c.startTime * 1000,
+    duration: c.duration,
+    url: "https://leetcode.com/contest/",
+    host: "leetcode.com"
+  }));
 }
+
+async function fetchAtCoder() {
+  const html = await axios.get("https://atcoder.jp/contests/", {
+    headers: { "User-Agent": "Mozilla/5.0" }
+  });
+
+  const $ = cheerio.load(html.data);
+  const contests = [];
+
+  $("#contest-table-upcoming tbody tr").each((_, el) => {
+    const name = $(el).find("td").eq(1).text().trim();
+    const link = "https://atcoder.jp" + $(el).find("a").attr("href");
+    const start = new Date($(el).find("time").attr("datetime")).getTime();
+    const durationText = $(el).find("td").eq(2).text().trim();
+    const [h, m] = durationText.split(":").map(Number);
+
+    contests.push({
+      name,
+      start,
+      duration: h * 3600 + m * 60,
+      url: link,
+      host: "atcoder.jp"
+    });
+  });
+
+  return contests;
+}
+
+async function fetchCodeChef() {
+  const html = await axios.get("https://www.codechef.com/contests", {
+    headers: { "User-Agent": "Mozilla/5.0" }
+  });
+
+  const $ = cheerio.load(html.data);
+  const contests = [];
+
+  $("#future-contests-data tbody tr").each((_, el) => {
+    const tds = $(el).find("td");
+    const name = tds.eq(1).text().trim();
+    const link = "https://www.codechef.com" + tds.eq(1).find("a").attr("href");
+
+    const start = new Date(tds.eq(2).text().trim()).getTime();
+    const durationText = tds.eq(3).text().trim();
+    const [h, m] = durationText.split(":").map(Number);
+
+    contests.push({
+      name,
+      start,
+      duration: h * 3600 + m * 60,
+      url: link,
+      host: "codechef.com"
+    });
+  });
+
+  return contests;
+}
+
+/* ---------------- MAIN ---------------- */
+
+export async function fetchData(sock) {
+  try {
+    const [cf, lc, ac, cc] = await Promise.all([
+      fetchCodeforces(),
+      fetchLeetCode(),
+      fetchAtCoder(),
+      fetchCodeChef()
+    ]);
+
+    const all = [...cf, ...lc, ...ac, ...cc];
+
+    const now = Date.now();
+    const twoDaysLater = now + 2 * 24 * 60 * 60 * 1000;
+
+    const filtered = all.filter(c => c.start >= now && c.start <= twoDaysLater);
+
+    let message = "*✨ Upcoming Contests ✨*\n\n";
+
+    for (const contest of filtered) {
+      const msg = formatContest(contest);
+      message += msg;
+      setReminder(msg, contest.start).catch(() => {});
+    }
+
+    if (await checkFileAndDelete()) {
+      return sock.sendMessage(config.notification.helpNumber, { text: message });
+    }
+  } catch (err) {
+    return messageAdmin(sock, `Contest fetch failed: ${err.message}`);
+  }
+}
+
