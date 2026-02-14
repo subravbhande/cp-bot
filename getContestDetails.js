@@ -27,13 +27,21 @@ function formatContest(c) {
 🔗 ${c.url}\n\n`;
 }
 
+/* ---------- SAFE FETCH WRAPPER ---------- */
+
+async function safeFetch(name, fn) {
+  try {
+    return await fn();
+  } catch (err) {
+    console.error(`❌ ${name} fetch failed:`, err.message);
+    return [];
+  }
+}
+
 /* ---------- FETCHERS ---------- */
 
 async function fetchCodeforces() {
-  const { data } = await axios.get(
-    "https://codeforces.com/api/contest.list"
-  );
-
+  const { data } = await axios.get("https://codeforces.com/api/contest.list");
   return data.result
     .filter(c => c.phase === "BEFORE")
     .map(c => ({
@@ -88,7 +96,6 @@ async function fetchAtCoder() {
   $("#contest-table-upcoming tbody tr").each((_, el) => {
     const name = $(el).find("td").eq(1).text().trim();
     const url = "https://atcoder.jp" + $(el).find("a").attr("href");
-
     const start =
       new Date($(el).find("time").attr("datetime")).getTime() +
       IST_OFFSET;
@@ -150,52 +157,41 @@ async function fetchCodeChef() {
 /* ---------- MAIN ---------- */
 
 export async function fetchData(sock) {
-  try {
-    const [cf, lc, ac, cc] = await Promise.all([
-      fetchCodeforces(),
-      fetchLeetCode(),
-      fetchAtCoder(),
-      fetchCodeChef()
-    ]);
+  const cf = await safeFetch("Codeforces", fetchCodeforces);
+  const lc = await safeFetch("LeetCode", fetchLeetCode);
+  const ac = await safeFetch("AtCoder", fetchAtCoder);
+  const cc = await safeFetch("CodeChef", fetchCodeChef);
 
-    const now = Date.now();
-    const twoDaysLater = now + 2 * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const twoDaysLater = now + 2 * 24 * 60 * 60 * 1000;
 
-    const contests = [...cf, ...lc, ...ac, ...cc]
-      .filter(c => c.start >= now && c.start <= twoDaysLater)
-      .sort((a, b) => a.start - b.start);
+  const contests = [...cf, ...lc, ...ac, ...cc]
+    .filter(c => c.start >= now && c.start <= twoDaysLater)
+    .sort((a, b) => a.start - b.start);
 
-    let message = "*✨ Upcoming Contests ✨*\n\n";
+  let message = "*✨ Upcoming Contests ✨*\n\n";
 
-    for (const c of contests) {
-      const m = formatContest(c);
-      message += m;
-      setReminder(m, c.start).catch(() => {});
-    }
+  for (const c of contests) {
+    const m = formatContest(c);
+    message += m;
+    setReminder(m, c.start).catch(() => {});
+  }
 
-    // WhatsApp mode
-    if (sock) {
+  // WhatsApp mode
+  if (sock) {
+    try {
       if (await checkFileAndDelete()) {
-        return sock.sendMessage(
+        await sock.sendMessage(
           config.notification.helpNumber,
           { text: message }
         );
       }
-      return;
+    } catch (err) {
+      await messageAdmin(sock, `Contest send failed: ${err.message}`);
     }
-
-    // CLI / test mode
-    return message;
-
-  }catch (err) {
-  if (sock) {
-    await messageAdmin(sock, `Contest fetch failed: ${err.message}`);
     return;
   }
 
   // CLI / test mode
-  console.error("Contest fetch failed:", err.message);
-  return null;
-}
-
+  return message;
 }
