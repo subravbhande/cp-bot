@@ -8,3 +8,6 @@ auth_info_baileys
 .venv
 site
 !requirements.txt
+
+qr_code.png
+reminderFile.txt
