@@ -4,11 +4,11 @@ import { setReminder } from "./reminderService.js";
 import { checkFileAndDelete, messageAdmin } from "./utility.js";
 import config from "./config.js";
 
-/* ================== CONSTANTS ================== */
+/* ================= CONSTANTS ================= */
 
 const IST_OFFSET = 5.5 * 60 * 60 * 1000;
 
-/* ================== HELPERS ================== */
+/* ================= HELPERS ================= */
 
 function formatContest(contest) {
   const startTime = new Date(contest.start).toLocaleTimeString("en-IN", {
@@ -29,7 +29,16 @@ function formatContest(contest) {
 🔗 ${contest.url}\n\n`;
 }
 
-/* ================== FETCHERS ================== */
+async function safeFetch(fn, name) {
+  try {
+    return await fn();
+  } catch (err) {
+    console.error(`❌ ${name} failed:`, err.message);
+    return [];
+  }
+}
+
+/* ================= FETCHERS ================= */
 
 /* -------- Codeforces -------- */
 async function fetchCodeforces() {
@@ -90,20 +99,25 @@ async function fetchAtCoder() {
 
   $("#contest-table-upcoming tbody tr").each((_, el) => {
     const name = $(el).find("td").eq(1).text().trim();
-
     const href = $(el).find("a").attr("href");
-    if (!href) return;
+    const time = $(el).find("time").attr("datetime");
 
-    const timeAttr = $(el).find("time").attr("datetime");
-    const startParsed = Date.parse(timeAttr);
-    if (isNaN(startParsed)) return;
+    if (!name || !href || !time) return;
 
-    const durationText = $(el).find("td").eq(2).text().trim();
-    const [h, m] = durationText.split(":").map(Number);
+    const start = Date.parse(time);
+    if (isNaN(start)) return;
+
+    const [h, m] = $(el)
+      .find("td")
+      .eq(2)
+      .text()
+      .trim()
+      .split(":")
+      .map(Number);
 
     contests.push({
       name,
-      start: startParsed + IST_OFFSET,
+      start: start + IST_OFFSET,
       duration: h * 3600 + m * 60,
       url: "https://atcoder.jp" + href,
       host: "atcoder.jp",
@@ -126,20 +140,20 @@ async function fetchCodeChef() {
     const tds = $(el).find("td");
 
     const name = tds.eq(1).text().trim();
-
     const href = tds.eq(1).find("a").attr("href");
-    if (!href) return;
-
     const startText = tds.eq(2).text().trim();
-    const startParsed = Date.parse(startText);
-    if (isNaN(startParsed)) return;
-
     const durationText = tds.eq(3).text().trim();
+
+    if (!name || !href || !startText || !durationText) return;
+
+    const start = Date.parse(startText);
+    if (isNaN(start)) return;
+
     const [h, m] = durationText.split(":").map(Number);
 
     contests.push({
       name,
-      start: startParsed + IST_OFFSET,
+      start: start + IST_OFFSET,
       duration: h * 3600 + m * 60,
       url: "https://www.codechef.com" + href,
       host: "codechef.com",
@@ -149,41 +163,37 @@ async function fetchCodeChef() {
   return contests;
 }
 
-/* ================== MAIN ================== */
+/* ================= MAIN ================= */
 
 export async function fetchData(sock) {
-  try {
-    const [cf, lc, ac, cc] = await Promise.all([
-      fetchCodeforces(),
-      fetchLeetCode(),
-      fetchAtCoder(),
-      fetchCodeChef(),
-    ]);
+  const cf = await safeFetch(fetchCodeforces, "Codeforces");
+  const lc = await safeFetch(fetchLeetCode, "LeetCode");
+  const ac = await safeFetch(fetchAtCoder, "AtCoder");
+  const cc = await safeFetch(fetchCodeChef, "CodeChef");
 
-    const all = [...cf, ...lc, ...ac, ...cc];
+  const all = [...cf, ...lc, ...ac, ...cc];
 
-    const now = Date.now();
-    const twoDaysLater = now + 2 * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const twoDaysLater = now + 2 * 24 * 60 * 60 * 1000;
 
-    const filtered = all.filter(
-      c => c.start >= now && c.start <= twoDaysLater
-    );
+  const filtered = all.filter(
+    c => c.start >= now && c.start <= twoDaysLater
+  );
 
-    let message = "*✨ Upcoming Contests ✨*\n\n";
-
-    for (const contest of filtered) {
-      const msg = formatContest(contest);
-      message += msg;
-      setReminder(msg, contest.start).catch(() => {});
-    }
-
-    if (await checkFileAndDelete()) {
-      return message;
-    }
-  } catch (err) {
-    return messageAdmin(
-      sock,
-      `Contest fetch failed: ${err.message}`
-    );
+  if (!filtered.length) {
+    return "No upcoming contests found in next 48 hours.";
   }
+
+  let message = "*✨ Upcoming Contests ✨*\n\n";
+
+  for (const contest of filtered) {
+    const msg = formatContest(contest);
+    message += msg;
+    setReminder(msg, contest.start).catch(() => {});
+  }
+
+  await checkFileAndDelete();
+
+  return message;
 }
+
