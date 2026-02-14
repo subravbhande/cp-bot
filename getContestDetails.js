@@ -11,7 +11,7 @@ const IST_OFFSET = 5.5 * 60 * 60 * 1000;
 function formatContest(c) {
   const time = new Date(c.start).toLocaleTimeString("en-IN", {
     hour: "2-digit",
-    minute: "2-digit",
+    minute: "2-digit"
   });
 
   const h = Math.floor(c.duration / 3600);
@@ -25,17 +25,6 @@ function formatContest(c) {
 ⏰ ${time}
 ⏳ ${dur}
 🔗 ${c.url}\n\n`;
-}
-
-/* ---------- SAFE FETCH WRAPPER ---------- */
-
-async function safeFetch(name, fn) {
-  try {
-    return await fn();
-  } catch (err) {
-    console.error(`❌ ${name} fetch failed:`, err.message);
-    return [];
-  }
 }
 
 /* ---------- FETCHERS ---------- */
@@ -97,8 +86,7 @@ async function fetchAtCoder() {
     const name = $(el).find("td").eq(1).text().trim();
     const url = "https://atcoder.jp" + $(el).find("a").attr("href");
     const start =
-      new Date($(el).find("time").attr("datetime")).getTime() +
-      IST_OFFSET;
+      new Date($(el).find("time").attr("datetime")).getTime() + IST_OFFSET;
 
     const [h, m] = $(el)
       .find("td")
@@ -130,15 +118,10 @@ async function fetchCodeChef() {
 
   $("#future-contests-data tbody tr").each((_, el) => {
     const tds = $(el).find("td");
-
     const name = tds.eq(1).text().trim();
-    const url =
-      "https://www.codechef.com" +
-      tds.eq(1).find("a").attr("href");
-
+    const url = "https://www.codechef.com" + tds.eq(1).find("a").attr("href");
     const start =
-      new Date(tds.eq(2).text().trim()).getTime() +
-      IST_OFFSET;
+      new Date(tds.eq(2).text().trim()).getTime() + IST_OFFSET;
 
     const [h, m] = tds.eq(3).text().trim().split(":").map(Number);
 
@@ -157,41 +140,49 @@ async function fetchCodeChef() {
 /* ---------- MAIN ---------- */
 
 export async function fetchData(sock) {
-  const cf = await safeFetch("Codeforces", fetchCodeforces);
-  const lc = await safeFetch("LeetCode", fetchLeetCode);
-  const ac = await safeFetch("AtCoder", fetchAtCoder);
-  const cc = await safeFetch("CodeChef", fetchCodeChef);
+  try {
+    const [cf, lc, ac, cc] = await Promise.all([
+      fetchCodeforces(),
+      fetchLeetCode(),
+      fetchAtCoder(),
+      fetchCodeChef()
+    ]);
 
-  const now = Date.now();
-  const twoDaysLater = now + 2 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const twoDaysLater = now + 2 * 24 * 60 * 60 * 1000;
 
-  const contests = [...cf, ...lc, ...ac, ...cc]
-    .filter(c => c.start >= now && c.start <= twoDaysLater)
-    .sort((a, b) => a.start - b.start);
+    const contests = [...cf, ...lc, ...ac, ...cc]
+      .filter(c => c.start >= now && c.start <= twoDaysLater)
+      .sort((a, b) => a.start - b.start);
 
-  let message = "*✨ Upcoming Contests ✨*\n\n";
+    let message = "*✨ Upcoming Contests ✨*\n\n";
 
-  for (const c of contests) {
-    const m = formatContest(c);
-    message += m;
-    setReminder(m, c.start).catch(() => {});
-  }
+    for (const c of contests) {
+      const m = formatContest(c);
+      message += m;
+      setReminder(m, c.start).catch(() => {});
+    }
 
-  // WhatsApp mode
-  if (sock) {
-    try {
+    if (sock) {
       if (await checkFileAndDelete()) {
-        await sock.sendMessage(
+        return sock.sendMessage(
           config.notification.helpNumber,
           { text: message }
         );
       }
-    } catch (err) {
-      await messageAdmin(sock, `Contest send failed: ${err.message}`);
+      return;
     }
-    return;
-  }
 
-  // CLI / test mode
-  return message;
+    // CLI / test mode
+    return message;
+
+  } catch (err) {
+    if (sock) {
+      await messageAdmin(sock, `Contest fetch failed: ${err.message}`);
+      return;
+    }
+
+    console.error("Contest fetch failed:", err.message);
+    return null;
+  }
 }
