@@ -1,5 +1,5 @@
 import axios from "axios";
-import cheerio from "cheerio";
+import * as cheerio from "cheerio";
 import { setReminder } from "./reminderService.js";
 import { checkFileAndDelete, messageAdmin } from "./utility.js";
 import config from "./config.js";
@@ -12,12 +12,9 @@ function formatContest(contest) {
     minute: "2-digit",
   });
 
-  const durationHours = Math.floor(contest.duration / 3600);
-  const durationMinutes = Math.floor((contest.duration % 3600) / 60);
-  const duration =
-    durationHours > 0
-      ? `${durationHours}h ${durationMinutes}m`
-      : `${durationMinutes}m`;
+  const h = Math.floor(contest.duration / 3600);
+  const m = Math.floor((contest.duration % 3600) / 60);
+  const duration = h > 0 ? `${h}h ${m}m` : `${m}m`;
 
   const icon =
     config.platforms.icons[contest.host] || config.platforms.icons.default;
@@ -28,6 +25,8 @@ function formatContest(contest) {
 🔗 ${contest.url}\n\n`;
 }
 
+const IST_OFFSET = 5.5 * 60 * 60 * 1000;
+
 /* ---------------- FETCHERS ---------------- */
 
 async function fetchCodeforces() {
@@ -36,7 +35,7 @@ async function fetchCodeforces() {
     .filter(c => c.phase === "BEFORE")
     .map(c => ({
       name: c.name,
-      start: c.startTimeSeconds * 1000,
+      start: c.startTimeSeconds * 1000 + IST_OFFSET,
       duration: c.durationSeconds,
       url: `https://codeforces.com/contest/${c.id}`,
       host: "codeforces.com"
@@ -68,7 +67,7 @@ async function fetchLeetCode() {
 
   return res.data.data.contestV2UpcomingContests.map(c => ({
     name: c.title,
-    start: c.startTime * 1000,
+    start: c.startTime * 1000 + IST_OFFSET,
     duration: c.duration,
     url: "https://leetcode.com/contest/",
     host: "leetcode.com"
@@ -86,9 +85,17 @@ async function fetchAtCoder() {
   $("#contest-table-upcoming tbody tr").each((_, el) => {
     const name = $(el).find("td").eq(1).text().trim();
     const link = "https://atcoder.jp" + $(el).find("a").attr("href");
-    const start = new Date($(el).find("time").attr("datetime")).getTime();
-    const durationText = $(el).find("td").eq(2).text().trim();
-    const [h, m] = durationText.split(":").map(Number);
+    const start =
+      new Date($(el).find("time").attr("datetime")).getTime() +
+      IST_OFFSET;
+
+    const [h, m] = $(el)
+      .find("td")
+      .eq(2)
+      .text()
+      .trim()
+      .split(":")
+      .map(Number);
 
     contests.push({
       name,
@@ -113,17 +120,18 @@ async function fetchCodeChef() {
   $("#future-contests-data tbody tr").each((_, el) => {
     const tds = $(el).find("td");
     const name = tds.eq(1).text().trim();
-    const link = "https://www.codechef.com" + tds.eq(1).find("a").attr("href");
+    const url = "https://www.codechef.com" + tds.eq(1).find("a").attr("href");
 
-    const start = new Date(tds.eq(2).text().trim()).getTime();
-    const durationText = tds.eq(3).text().trim();
-    const [h, m] = durationText.split(":").map(Number);
+    const start =
+      new Date(tds.eq(2).text().trim()).getTime() + IST_OFFSET;
+
+    const [h, m] = tds.eq(3).text().trim().split(":").map(Number);
 
     contests.push({
       name,
       start,
       duration: h * 3600 + m * 60,
-      url: link,
+      url,
       host: "codechef.com"
     });
   });
@@ -147,7 +155,9 @@ export async function fetchData(sock) {
     const now = Date.now();
     const twoDaysLater = now + 2 * 24 * 60 * 60 * 1000;
 
-    const filtered = all.filter(c => c.start >= now && c.start <= twoDaysLater);
+    const filtered = all.filter(
+      c => c.start >= now && c.start <= twoDaysLater
+    );
 
     let message = "*✨ Upcoming Contests ✨*\n\n";
 
@@ -158,10 +168,9 @@ export async function fetchData(sock) {
     }
 
     if (await checkFileAndDelete()) {
-      return sock.sendMessage(config.notification.helpNumber, { text: message });
+      return message;
     }
   } catch (err) {
     return messageAdmin(sock, `Contest fetch failed: ${err.message}`);
   }
 }
-
