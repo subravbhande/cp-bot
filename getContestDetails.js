@@ -6,6 +6,8 @@ import config from "./config.js";
 
 /* ---------------- HELPERS ---------------- */
 
+const IST_OFFSET = 5.5 * 60 * 60 * 1000;
+
 function formatContest(contest) {
   const startTime = new Date(contest.start).toLocaleTimeString("en-IN", {
     hour: "2-digit",
@@ -24,8 +26,6 @@ function formatContest(contest) {
 ⏳ *Duration:* ${duration}
 🔗 ${contest.url}\n\n`;
 }
-
-const IST_OFFSET = 5.5 * 60 * 60 * 1000;
 
 /* ---------------- FETCHERS ---------------- */
 
@@ -85,9 +85,10 @@ async function fetchAtCoder() {
   $("#contest-table-upcoming tbody tr").each((_, el) => {
     const name = $(el).find("td").eq(1).text().trim();
     const link = "https://atcoder.jp" + $(el).find("a").attr("href");
-    const start =
-      new Date($(el).find("time").attr("datetime")).getTime() +
-      IST_OFFSET;
+
+    const startRaw = $(el).find("time").attr("datetime");
+    const start = Date.parse(startRaw) + IST_OFFSET;
+    if (isNaN(start)) return;
 
     const [h, m] = $(el)
       .find("td")
@@ -122,8 +123,11 @@ async function fetchCodeChef() {
     const name = tds.eq(1).text().trim();
     const url = "https://www.codechef.com" + tds.eq(1).find("a").attr("href");
 
-    const start =
-      new Date(tds.eq(2).text().trim()).getTime() + IST_OFFSET;
+    const startText = tds.eq(2).text().trim();
+    const startParsed = Date.parse(startText);
+    if (isNaN(startParsed)) return;
+
+    const start = startParsed + IST_OFFSET;
 
     const [h, m] = tds.eq(3).text().trim().split(":").map(Number);
 
@@ -168,9 +172,15 @@ export async function fetchData(sock) {
     }
 
     if (await checkFileAndDelete()) {
-      return message;
+      if (sock?.sendMessage) {
+        return sock.sendMessage(config.notification.helpNumber, { text: message });
+      }
+      return message; // for manual testing
     }
   } catch (err) {
-    return messageAdmin(sock, `Contest fetch failed: ${err.message}`);
+    return messageAdmin(
+      sock,
+      `Contest fetch failed: ${err.message}`
+    );
   }
 }
