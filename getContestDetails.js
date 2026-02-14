@@ -4,9 +4,11 @@ import { setReminder } from "./reminderService.js";
 import { checkFileAndDelete, messageAdmin } from "./utility.js";
 import config from "./config.js";
 
-/* ---------------- HELPERS ---------------- */
+/* ================== CONSTANTS ================== */
 
 const IST_OFFSET = 5.5 * 60 * 60 * 1000;
+
+/* ================== HELPERS ================== */
 
 function formatContest(contest) {
   const startTime = new Date(contest.start).toLocaleTimeString("en-IN", {
@@ -27,10 +29,12 @@ function formatContest(contest) {
 🔗 ${contest.url}\n\n`;
 }
 
-/* ---------------- FETCHERS ---------------- */
+/* ================== FETCHERS ================== */
 
+/* -------- Codeforces -------- */
 async function fetchCodeforces() {
   const res = await axios.get("https://codeforces.com/api/contest.list");
+
   return res.data.result
     .filter(c => c.phase === "BEFORE")
     .map(c => ({
@@ -38,10 +42,11 @@ async function fetchCodeforces() {
       start: c.startTimeSeconds * 1000 + IST_OFFSET,
       duration: c.durationSeconds,
       url: `https://codeforces.com/contest/${c.id}`,
-      host: "codeforces.com"
+      host: "codeforces.com",
     }));
 }
 
+/* -------- LeetCode -------- */
 async function fetchLeetCode() {
   const res = await axios.post(
     "https://leetcode.com/graphql",
@@ -54,14 +59,14 @@ async function fetchLeetCode() {
             duration
           }
         }
-      `
+      `,
     },
     {
       headers: {
         "Content-Type": "application/json",
         "User-Agent": "Mozilla/5.0",
-        "Referer": "https://leetcode.com"
-      }
+        Referer: "https://leetcode.com",
+      },
     }
   );
 
@@ -70,13 +75,14 @@ async function fetchLeetCode() {
     start: c.startTime * 1000 + IST_OFFSET,
     duration: c.duration,
     url: "https://leetcode.com/contest/",
-    host: "leetcode.com"
+    host: "leetcode.com",
   }));
 }
 
+/* -------- AtCoder -------- */
 async function fetchAtCoder() {
   const html = await axios.get("https://atcoder.jp/contests/", {
-    headers: { "User-Agent": "Mozilla/5.0" }
+    headers: { "User-Agent": "Mozilla/5.0" },
   });
 
   const $ = cheerio.load(html.data);
@@ -84,35 +90,33 @@ async function fetchAtCoder() {
 
   $("#contest-table-upcoming tbody tr").each((_, el) => {
     const name = $(el).find("td").eq(1).text().trim();
-    const link = "https://atcoder.jp" + $(el).find("a").attr("href");
 
-    const startRaw = $(el).find("time").attr("datetime");
-    const start = Date.parse(startRaw) + IST_OFFSET;
-    if (isNaN(start)) return;
+    const href = $(el).find("a").attr("href");
+    if (!href) return;
 
-    const [h, m] = $(el)
-      .find("td")
-      .eq(2)
-      .text()
-      .trim()
-      .split(":")
-      .map(Number);
+    const timeAttr = $(el).find("time").attr("datetime");
+    const startParsed = Date.parse(timeAttr);
+    if (isNaN(startParsed)) return;
+
+    const durationText = $(el).find("td").eq(2).text().trim();
+    const [h, m] = durationText.split(":").map(Number);
 
     contests.push({
       name,
-      start,
+      start: startParsed + IST_OFFSET,
       duration: h * 3600 + m * 60,
-      url: link,
-      host: "atcoder.jp"
+      url: "https://atcoder.jp" + href,
+      host: "atcoder.jp",
     });
   });
 
   return contests;
 }
 
+/* -------- CodeChef -------- */
 async function fetchCodeChef() {
   const html = await axios.get("https://www.codechef.com/contests", {
-    headers: { "User-Agent": "Mozilla/5.0" }
+    headers: { "User-Agent": "Mozilla/5.0" },
   });
 
   const $ = cheerio.load(html.data);
@@ -120,30 +124,32 @@ async function fetchCodeChef() {
 
   $("#future-contests-data tbody tr").each((_, el) => {
     const tds = $(el).find("td");
+
     const name = tds.eq(1).text().trim();
-    const url = "https://www.codechef.com" + tds.eq(1).find("a").attr("href");
+
+    const href = tds.eq(1).find("a").attr("href");
+    if (!href) return;
 
     const startText = tds.eq(2).text().trim();
     const startParsed = Date.parse(startText);
     if (isNaN(startParsed)) return;
 
-    const start = startParsed + IST_OFFSET;
-
-    const [h, m] = tds.eq(3).text().trim().split(":").map(Number);
+    const durationText = tds.eq(3).text().trim();
+    const [h, m] = durationText.split(":").map(Number);
 
     contests.push({
       name,
-      start,
+      start: startParsed + IST_OFFSET,
       duration: h * 3600 + m * 60,
-      url,
-      host: "codechef.com"
+      url: "https://www.codechef.com" + href,
+      host: "codechef.com",
     });
   });
 
   return contests;
 }
 
-/* ---------------- MAIN ---------------- */
+/* ================== MAIN ================== */
 
 export async function fetchData(sock) {
   try {
@@ -151,7 +157,7 @@ export async function fetchData(sock) {
       fetchCodeforces(),
       fetchLeetCode(),
       fetchAtCoder(),
-      fetchCodeChef()
+      fetchCodeChef(),
     ]);
 
     const all = [...cf, ...lc, ...ac, ...cc];
@@ -172,10 +178,7 @@ export async function fetchData(sock) {
     }
 
     if (await checkFileAndDelete()) {
-      if (sock?.sendMessage) {
-        return sock.sendMessage(config.notification.helpNumber, { text: message });
-      }
-      return message; // for manual testing
+      return message;
     }
   } catch (err) {
     return messageAdmin(
